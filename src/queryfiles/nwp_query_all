@@ -1,9 +1,6 @@
 begin
-stash=05216
+stash=05226
 lbproc=128
-T1>={2022/03/29 06:00:00}
-T1<={2022/03/29 08:00:00}
-LBREL=3
 pp_file="filemoose_pb"
 end
 begin
