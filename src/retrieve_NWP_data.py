@@ -3,8 +3,12 @@ import sys
 import datetime
 import iris
 from iris.time import PartialDateTime
+import numpy as np
 import glob
-
+import warnings
+import iris.quickplot as qplt
+import matplotlib.pyplot as plt
+warnings.filterwarnings('ignore')
 
 def regrid_cube(my_cubes, base_cube):
     base_cube.coord('latitude').units = my_cubes.coord('latitude').units = 'degrees'
@@ -30,10 +34,62 @@ def regrid_cube(my_cubes, base_cube):
     reg_cube = my_cubes.regrid(base_cube, iris.analysis.Linear())
     return reg_cube
 
+def construct_3hrly_from_accumm(date, hour=None, model_data_dir=None,
+                                      gpm_out_folder='/scratch/hadpx/Feature_monitor_data/gpm'):
+    '''
 
+    :param date:
+    :type date:
+    :param hour:
+    :type hour:
+    :param model_data_dir:
+    :type model_data_dir:
+    :param gpm_folder:
+    :type gpm_folder:
+    :param gpm_out_folder:
+    :type gpm_out_folder:
+    :return:
+    :rtype:
+    '''
+    str_year, str_month, str_day = str(date.year), str('%02d' % date.month), str('%02d' % date.day)
+    date_label = '%s%s%s' % (str_year, str_month, str_day)
+
+    # read the model data
+    ##########################################################################
+    #remote_data_dir_outfile = os.path.join(model_data_dir, moose_file_name)
+    model_files = glob.glob(os.path.join(model_data_dir, 'SEA_netcdf',
+                                         'prods_op_gl-mn_%s_%s_*.nc' % (date_label, hour)))
+    model_cube = iris.load_cube(model_files, 'm01s05i226')
+    model_diff_cube = model_cube.copy()
+    model_diff_cube.data[1:] = np.diff(model_cube.data, axis=0)
+    model_mean_file = os.path.join(model_data_dir, 'SEA_netcdf',
+                                         'precip_mean_prods_op_gl-mn_%s_%s.nc' % (date_label, hour))
+    iris.save(model_diff_cube, model_mean_file)
+    print('Written %s .' %model_mean_file)
+
+    # read the GPM data
+    ##########################################################################
+    # remote_data_dir_outfile = os.path.join(model_data_dir, moose_file_name)
+    obs_files = glob.glob(os.path.join(gpm_out_folder, 'SEA_netcdf',
+                                         'gpm_imerg_NRTearly_%s_%s_*.nc' % (date_label, hour)))
+    obs_cube = iris.load_cube(obs_files, 'm01s05i216')
+    obs_diff_cube = obs_cube.copy()
+    obs_diff_cube.data[1:] = np.diff(obs_cube.data, axis=0)
+    obs_mean_file = os.path.join(gpm_out_folder, 'SEA_netcdf',
+                                   'gpm_imerg_NRTearly_%s_%s.nc' % (date_label, hour))
+    iris.save(obs_diff_cube, obs_mean_file)
+    print('Written %s .' % obs_mean_file)
+    '''
+    qplt.plot(model_cube[:,30,152])
+    qplt.plot(model_diff_cube[:, 30, 152])
+    qplt.plot(obs_cube[:, 30, 152])
+    qplt.plot(obs_diff_cube[:, 30, 152])
+    plt.show()
+    '''
 def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None, model_data_dir=None,
                                       gpm_folder='/project/earthobs/PRECIPITATION/GPM/netcdf/imerg/NRTearly/1hr-accum',
-                                      gpm_out_folder='/scratch/hadpx/Feature_monitor_data/gpm'):
+                                      gpm_out_folder='/scratch/hadpx/Feature_monitor_data/gpm',
+                                      lat_range=(-10, 20), lon_range=(90, 140)):
     '''
     Generate the GPM data to match the model data
     :param date:
@@ -58,7 +114,18 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None, model_data_dir
     remote_data_dir_outfile = os.path.join(model_data_dir, moose_file_name)
     model_cube = iris.load_cube(remote_data_dir_outfile)
     m_time_coord = model_cube.coord('time')
-    m_time_bounds = model_cube.coord('time').bounds
+    m_time_coord_bounds = model_cube.coord('time').bounds
+    m_time_bounds = [m_time_coord.units.num2date(tp) for tp in m_time_coord_bounds][0]
+    print(m_time_bounds)
+
+    # extracting SEAsia
+    model_cube = model_cube.intersection(latitude=lat_range, longitude=lon_range)
+    # save model to the subset folder
+    model_outfile = os.path.join(model_data_dir, 'SEA_netcdf',
+                                 'prods_op_gl-mn_%s_%s_%s.nc' % (date_label, hour, lead))
+    iris.save(model_cube, model_outfile)
+    print('Written %s .' % model_outfile)
+
     #m_cube_times = [m_time_coord.units.num2date(tp) for tp in m_time_coord.points]
 
     # m_time_bounds as datetime objects from model
@@ -70,35 +137,42 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None, model_data_dir
     # read GPM data
     file_name = glob.glob(gpm_folder + '/*.nc')[0]
     print(file_name)
-    obs_cube = iris.load_cube(file_name, 'm01s05i216')
+    try:
+        obs_cube = iris.load_cube(file_name, 'm01s05i216')
+        #print(obs_cube)
+        # now make a time constraint on gpm based on model data bounds
+        pdt1 = PartialDateTime(year=m_time_bounds[0].year,
+                               month=m_time_bounds[0].month,
+                               day=m_time_bounds[0].day,
+                               hour=m_time_bounds[0].hour)
+        pdt2 = PartialDateTime(year=m_time_bounds[1].year,
+                               month=m_time_bounds[1].month,
+                               day=m_time_bounds[1].day,
+                               hour=m_time_bounds[1].hour)
+        print(pdt1, pdt2)
+        try:
+            # Constrain the time
+            gpm_time_constraint = iris.Constraint(time=lambda cell: pdt1 <= cell.point < pdt2)
+            obs_cube = obs_cube.extract(gpm_time_constraint)
+            print(len(obs_cube.shape))
+            if len(obs_cube.shape) == 3:
+                obs_cube = obs_cube.collapsed('time', iris.analysis.SUM)
 
-    # now make a time constraint on gpm based on model data bounds
-    pdt1 = PartialDateTime(year=m_time_bounds[0].year,
-                           month=m_time_bounds[0].month,
-                           day=m_time_bounds[0].day,
-                           hour=m_time_bounds[0].hour)
-    pdt2 = PartialDateTime(year=m_time_bounds[1].year,
-                           month=m_time_bounds[1].month,
-                           day=m_time_bounds[1].day,
-                           hour=m_time_bounds[1].hour)
-    print(pdt1, pdt2)
-    # Constrain the time
-    gpm_time_constraint = iris.Constraint(time=lambda cell: pdt1 <= cell.point < pdt2)
-    obs_cube = obs_cube.extract(gpm_time_constraint)
 
-    if len(obs_cube.shape) == 3:
-        obs_cube = obs_cube.collapsed('time', iris.analysis.SUM)
+            obs_cube = obs_cube.intersection(latitude=lat_range, longitude=lon_range)
 
-    # extracting SEAsia
-    model_cube = model_cube.intersection(latitude=(-20, 30), longitude=(100, 130))
-    obs_cube = obs_cube.intersection(latitude=(-20, 30), longitude=(100, 130))
+            # regridding obs to model grid
+            obs_cube = regrid_cube(obs_cube, model_cube)
 
-    # regridding obs to model grid
-    obs_cube = regrid_cube(obs_cube, model_cube)
-
-    obs_outfile = os.path.join(gpm_out_folder, 'gpm_%s_%s_%s.nc' %(date_label, hour, lead))
-    #return obs_cube
-
+            # save gpm to the subset folder
+            obs_outfile = os.path.join(gpm_out_folder, 'SEA_netcdf', 'gpm_imerg_NRTearly_%s_%s_%s.nc' %(date_label, hour, lead))
+            iris.save(obs_cube, obs_outfile)
+            print('Written %s' % obs_outfile)
+        except:
+            print('Model date/time are beyond the observations. Skip.')
+            pass
+    except:
+        print('GPM data is probably being downloaded. Try again later.')
 
 def retrieve_nwp_3hr_data(date, hour=None, lead=None, moosedir=None, remote_data_dir=None):
     '''
@@ -121,7 +195,7 @@ def retrieve_nwp_3hr_data(date, hour=None, lead=None, moosedir=None, remote_data
     print('Doing date : %s' % date_label)
     query_files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'queryfiles')
 
-    print(query_files_dir)
+    #print(query_files_dir)
 
     if not os.path.exists(remote_data_dir):
         print('Making dir: %s' % remote_data_dir)
@@ -131,7 +205,7 @@ def retrieve_nwp_3hr_data(date, hour=None, lead=None, moosedir=None, remote_data
     local_query_file1 = os.path.join(query_files_dir, 'local_query1')
     moose_file_name = 'prods_op_gl-mn_%s_%s_%s.pp' %(date_label, hour, lead)
     dir_moose = os.path.join(moosedir, '%s.pp'%str_year)
-    print(moose_file_name)
+    #print(moose_file_name)
     #os.system('moo ls %s' % filemoose)
 
     # Replace the fctime and filemoose in query file
@@ -141,10 +215,9 @@ def retrieve_nwp_3hr_data(date, hour=None, lead=None, moosedir=None, remote_data
         for line in query_infile:
             for src, target in replacements.items():
                 line = line.replace(src, target)
-                print(line)
             query_outfile.write(line)
 
-    print(local_query_file1)
+    #print(local_query_file1)
     # do the retrieval
     remote_data_dir_outfile = os.path.join(remote_data_dir, moose_file_name)
 
@@ -160,12 +233,20 @@ def retrieve_nwp_3hr_data(date, hour=None, lead=None, moosedir=None, remote_data
 if __name__ == '__main__':
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    yesterday = datetime.date(2022,3,29)
+    yesterday = datetime.date(2022,3,21)
     moosedir = 'moose:/opfc/atm/global/prods/'
     model_data_dir = '/scratch/hadpx/Feature_monitor_data/global_um'
+    leads = range(0, 69, 3)
 
-    retrieve_nwp_3hr_data(yesterday, hour='06', lead='009',
-                          moosedir=moosedir, remote_data_dir=model_data_dir)
+    lead_times = [str('%03d' % l) for l in leads]
+    '''
+    for lead_time in lead_times:
+        retrieve_nwp_3hr_data(yesterday, hour='06', lead=lead_time,
+                              moosedir=moosedir, remote_data_dir=model_data_dir)
 
-    obs_data_dir = '/scratch/hadpx/Feature_monitor_data/gpm'
-    retrieve_gpm_from_modelTimeBounds(yesterday, hour='06', lead='009', model_data_dir=obs_data_dir)
+        obs_data_dir = '/scratch/hadpx/Feature_monitor_data/gpm'
+        retrieve_gpm_from_modelTimeBounds(yesterday, hour='06', lead=lead_time,
+                                          model_data_dir=model_data_dir)
+
+    '''
+    construct_3hrly_from_accumm(yesterday, hour='06', model_data_dir=model_data_dir)
