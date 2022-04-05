@@ -87,7 +87,7 @@ def grid_features(cube, thresholds=None, time_index=0, threshold_method='geq'):
 
             # Label each feature in the mask
             labeled_array, num_features = ndimage.measurements.label(mask)
-            print('%s features labelled.' % num_features)
+            #print('%s features labelled.' % num_features)
             # labelled_array is a mask hence != operator below
             for feature_num in tqdm(range(1, num_features)):
                 # threshold
