@@ -56,9 +56,16 @@ def plots_wrapper(date, hour='00', data_info=None):
         print('Making dir: %s' % plot_folder)
         os.makedirs(plot_folder)
 
+    # Simple scatter plot
     scatter_plot_file = os.path.join(plot_folder, data_info['label']+'_Scatter_%s_%s.png' %(date_label, hour))
     gp.plot_scatter_ScaledSize(df, size_var='Mean', title=data_info['label'], fig_name=scatter_plot_file)
     print('Plotted %s' %scatter_plot_file)
+
+    joint_scatter_plot_file = os.path.join(plot_folder, data_info['label'] +
+                                           '_JointScatter_%s_%s.png' % (date_label, hour))
+    gp.plot_joint_scatter(df, size_var='Mean', title=data_info['label'], fig_name=joint_scatter_plot_file)
+    print('Plotted %s' % joint_scatter_plot_file)
+
 
 if __name__ == '__main__':
 
