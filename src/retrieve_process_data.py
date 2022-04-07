@@ -70,8 +70,12 @@ def construct_3hrly_from_accumm(date, hour=None, model_data_info=None, obs_data_
     # read the GPM data
     ##########################################################################
     # remote_data_dir_outfile = os.path.join(model_data_dir, moose_file_name)
+    print(os.path.join(obs_data_info['data_proc_dir'], obs_data_info['process_region'],
+                                         obs_data_info['data_prefix']+'%s_%s_*.nc' % (date_label, hour)))
+
     obs_files = glob.glob(os.path.join(obs_data_info['data_proc_dir'], obs_data_info['process_region'],
                                          obs_data_info['data_prefix']+'%s_%s_*.nc' % (date_label, hour)))
+
     obs_cube = iris.load_cube(obs_files, 'm01s05i216')
     obs_diff_cube = obs_cube.copy()
     obs_diff_cube.data[1:] = np.diff(obs_cube.data, axis=0)
