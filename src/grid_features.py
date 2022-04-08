@@ -1,7 +1,8 @@
 import numpy as np
 import scipy.ndimage as ndimage
-from tqdm import tqdm
 from skimage import measure
+from tqdm import tqdm
+import datetime
 import pandas as pd
 
 
@@ -67,11 +68,13 @@ def grid_features(cube, thresholds=None, time_index=0, threshold_method='geq'):
 
         # Cube date
         if cube.coords('time'):
-            cube_date = cube.coord('time').units.num2date(cube.coord('time').points)
+            c_date = cube.coord('time').units.num2date(cube.coord('time').points)
+            cube_date = datetime.datetime(c_date.year, c_date.month, c_date.day)
 
         if cube.coords('forecast_reference_time'):
-            forecast_rt = cube.coord('forecast_reference_time').units.num2date(
+            frt = cube.coord('forecast_reference_time').units.num2date(
                 cube.coord('forecast_reference_time').points)[0]
+            forecast_rt = datetime.datetime(frt.year, frt.month, frt.day)
         else:
             forecast_rt = np.nan
 

@@ -75,7 +75,7 @@ def construct_3hrly_from_accumm(date, hour=None, model_data_info=None, obs_data_
 
     obs_files = glob.glob(os.path.join(obs_data_info['data_proc_dir'], obs_data_info['process_region'],
                                          obs_data_info['data_prefix']+'%s_%s_*.nc' % (date_label, hour)))
-
+    print(obs_files)
     obs_cube = iris.load_cube(obs_files, 'm01s05i216')
     obs_diff_cube = obs_cube.copy()
     obs_diff_cube.data[1:] = np.diff(obs_cube.data, axis=0)
@@ -149,9 +149,17 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None,
     file_name = glob.glob(obs_data_info['source'] + '/*.nc')[0]
     print(file_name)
 
-    obs_cube = iris.load_cube(file_name, 'm01s05i216')
+    # Check if the GPM file has been updated at least 5 mins ago
+    modTimesinceEpoc = os.path.getmtime(file_name)
+    time_since_update = datetime.datetime.now() - datetime.datetime.fromtimestamp(modTimesinceEpoc)
 
-    if all([c.var_name in ['time', 'latitude', 'longitude'] for c in obs_cube.dim_coords]):
+    print('GPM file updated %s mins ago' %(time_since_update.seconds/60))
+    if time_since_update.seconds/60. >= 5:
+
+        obs_cube = iris.load_cube(file_name, 'm01s05i216')
+        if obs_cube.coords('am_or_pm'):
+            obs_cube.remove_coord('am_or_pm')
+
         #print(obs_cube)
         # now make a time constraint on gpm based on model data bounds
         pdt1 = PartialDateTime(year=m_time_bounds[0].year,
@@ -167,10 +175,14 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None,
             # Constrain the time
             gpm_time_constraint = iris.Constraint(time=lambda cell: pdt1 <= cell.point < pdt2)
             obs_cube = obs_cube.extract(gpm_time_constraint)
+
+
             print(len(obs_cube.shape))
             if len(obs_cube.shape) == 3:
                 obs_cube = obs_cube.collapsed('time', iris.analysis.SUM)
 
+            obs_cube.coord('time').bounds = m_time_coord_bounds
+            print(m_time_bounds)
 
             obs_cube = obs_cube.intersection(latitude=obs_data_info['region_lat_range'],
                                              longitude=obs_data_info['region_lon_range'])
@@ -190,7 +202,7 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None,
     else:
         print('GPM data is probably being downloaded. Try again later.')
         print('Check the size of %s' %file_name)
-        sys.exit()
+        pass
 
 def retrieve_nwp_3hr_data(date, hour=None, lead=None, data_info=None):
     '''

@@ -61,6 +61,7 @@ def plots_wrapper(date, hour='00', data_info=None):
     gp.plot_scatter_ScaledSize(df, size_var='Mean', title=data_info['label'], fig_name=scatter_plot_file)
     print('Plotted %s' %scatter_plot_file)
 
+    # Joint scatter plot with lines to indicate density of occurrance
     joint_scatter_plot_file = os.path.join(plot_folder, data_info['label'] +
                                            '_JointScatter_%s_%s.png' % (date_label, hour))
     gp.plot_joint_scatter(df, size_var='Mean', title=data_info['label'], fig_name=joint_scatter_plot_file)
@@ -71,7 +72,7 @@ if __name__ == '__main__':
 
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    yesterday = datetime.date(2022,4,1)
+    yesterday = datetime.date(2022,4,5)
 
     oper = dict()
     oper['label'] = 'OPER_UM'
@@ -82,8 +83,6 @@ if __name__ == '__main__':
     oper['process_region'] = 'SEAsia'
     oper['region_lat_range'] = (-10, 20)
     oper['region_lon_range'] = (90, 140)
-    #moosedir =
-    #model_data_dir =
 
     ps45 = dict()
     ps45['label'] = 'PS45'
