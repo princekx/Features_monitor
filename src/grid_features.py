@@ -1,3 +1,4 @@
+import os, sys
 import numpy as np
 import scipy.ndimage as ndimage
 from skimage import measure
@@ -68,7 +69,8 @@ def grid_features(cube, thresholds=None, time_index=0, threshold_method='geq'):
 
         # Cube date
         if cube.coords('time'):
-            c_date = cube.coord('time').units.num2date(cube.coord('time').points)
+            c_date = cube.coord('time').units.num2date(cube.coord('time').points)[0]
+            print(c_date)
             cube_date = datetime.datetime(c_date.year, c_date.month, c_date.day)
 
         if cube.coords('forecast_reference_time'):

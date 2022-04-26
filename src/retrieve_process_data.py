@@ -5,6 +5,7 @@ import iris
 from iris.time import PartialDateTime
 import numpy as np
 import glob
+import subprocess
 import warnings
 import iris.quickplot as qplt
 import matplotlib.pyplot as plt
@@ -202,6 +203,118 @@ def retrieve_gpm_from_modelTimeBounds(date, hour=None, lead=None,
     else:
         print('GPM data is probably being downloaded. Try again later.')
         print('Check the size of %s' %file_name)
+        os.system('ls -lrt %s' %file_name)
+        sys.exit()
+
+def retrieve_gpm_from_30min_modelTimeBounds(date, hour=None, lead=None,
+                                      model_data_info=None, obs_data_info=None):
+    '''
+    Generate the GPM data to match the model data
+    :param date:
+    :type date:
+    :param hour:
+    :type hour:
+    :param lead:
+    :type lead:
+    :param model_data_dir:
+    :type model_data_dir:
+    :param gpm_folder:
+    :type gpm_folder:
+    :return:
+    :rtype:
+
+    '''
+    str_year, str_month, str_day = str(date.year), str('%02d' % date.month), str('%02d' % date.day)
+    date_label = '%s%s%s' % (str_year, str_month, str_day)
+
+    # read the model data
+    ##########################################################################
+    moose_file_name = model_data_info['data_prefix'] + '%s_%s_%s.pp' % (date_label, hour, lead)
+    remote_data_dir_outfile = os.path.join(model_data_info['data_proc_dir'], moose_file_name)
+
+    data_proc_dir = obs_data_info['data_proc_dir']
+    if not os.path.exists(data_proc_dir):
+        print('Making dir: %s' % data_proc_dir)
+        os.makedirs(data_proc_dir)
+
+    data_proc_reg_dir = os.path.join(data_proc_dir, obs_data_info['process_region'])
+    if not os.path.exists(data_proc_reg_dir):
+        print('Making dir: %s' % data_proc_reg_dir)
+        os.makedirs(data_proc_reg_dir)
+
+
+    model_cube = iris.load_cube(remote_data_dir_outfile)
+    m_time_coord = model_cube.coord('time')
+    m_time_coord_bounds = model_cube.coord('time').bounds
+    m_time_bounds = [m_time_coord.units.num2date(tp) for tp in m_time_coord_bounds][0]
+    print(m_time_bounds)
+
+    # extracting SEAsia
+    model_cube = model_cube.intersection(latitude=model_data_info['region_lat_range'],
+                                         longitude=model_data_info['region_lon_range'])
+    # save model to the subset folder
+    model_outfile = os.path.join(model_data_info['data_proc_dir'],
+                                 model_data_info['process_region'],
+                                 model_data_info['data_prefix']+'%s_%s_%s.nc' % (date_label, hour, lead))
+    iris.save(model_cube, model_outfile)
+    print('Written %s .' % model_outfile)
+
+    #m_cube_times = [m_time_coord.units.num2date(tp) for tp in m_time_coord.points]
+
+    # m_time_bounds as datetime objects from model
+    #time_delta = m_time_bounds[1] - m_time_bounds[0]
+    # time delta in hours to choose 3 hourly or 6 hourly mean GPM data
+    #time_delta = time_delta.seconds / 60 / 60.
+    #gpm_folder = os.path.join(gpm_folder, '%shr-accum' % str(int(time_delta)))
+    #
+    # read GPM 30 min data from the date of the forecast initialisation
+    gpm_folder = os.path.join(obs_data_info['source'], str_year)
+    command = "ls " + gpm_folder + "/"+obs_data_info['data_prefix']+"????????.nc | awk -F'[_.]' '$5>='"+date_label
+    filenames = subprocess.check_output(command, shell=True).rstrip().decode().splitlines()
+    # filenames = os.system(command)
+    #print(filenames)
+
+    obs_cubes = iris.load(filenames)
+    obs_cube = obs_cubes.concatenate_cube()
+
+    #print(obs_cube)
+    # now make a time constraint on gpm based on model data bounds
+    pdt1 = PartialDateTime(year=m_time_bounds[0].year,
+                           month=m_time_bounds[0].month,
+                           day=m_time_bounds[0].day,
+                           hour=m_time_bounds[0].hour)
+    pdt2 = PartialDateTime(year=m_time_bounds[1].year,
+                           month=m_time_bounds[1].month,
+                           day=m_time_bounds[1].day,
+                           hour=m_time_bounds[1].hour)
+    print(pdt1, pdt2)
+    try:
+        # Constrain the time
+        gpm_time_constraint = iris.Constraint(time=lambda cell: pdt1 <= cell.point < pdt2)
+        obs_cube = obs_cube.extract(gpm_time_constraint)
+
+
+        print(len(obs_cube.shape))
+        if len(obs_cube.shape) == 3:
+            obs_cube = obs_cube.collapsed('time', iris.analysis.SUM)
+
+        obs_cube.coord('time').bounds = m_time_coord_bounds
+        print(m_time_bounds)
+
+        obs_cube = obs_cube.intersection(latitude=obs_data_info['region_lat_range'],
+                                         longitude=obs_data_info['region_lon_range'])
+
+        # regridding obs to model grid
+        obs_cube = regrid_cube(obs_cube, model_cube)
+
+        # save gpm to the subset folder
+        obs_outfile = os.path.join(obs_data_info['data_proc_dir'],
+                                   obs_data_info['process_region'],
+                                   obs_data_info['data_prefix']+'%s_%s_%s.nc' %(date_label, hour, lead))
+        iris.save(obs_cube, obs_outfile)
+        print('Written %s' % obs_outfile)
+    except:
+        print('Model date/time are beyond the observations. Skip.')
         pass
 
 def retrieve_nwp_3hr_data(date, hour=None, lead=None, data_info=None):

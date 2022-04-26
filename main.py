@@ -34,14 +34,14 @@ def compute_features(date, hour='00', thresholds=[10], data_info=None, threshold
     cube = iris.load_cube(data_file)
     pickle_file = os.path.join(data_folder, 'features_' + data_info['data_prefix']
                                + '%s_%s.pkl' % (date_label, hour))
-    if not os.path.exists(pickle_file):
-        features = gf.grid_features_3d(cube, thresholds=thresholds,
-                                       threshold_method=threshold_method)
+    #if not os.path.exists(pickle_file):
+    features = gf.grid_features_3d(cube, thresholds=thresholds,
+                                   threshold_method=threshold_method)
 
-        features.to_pickle(pickle_file)
-        print('Pickled %s' %pickle_file)
-    else:
-        print('Pickle file %s exists. Skip.' % pickle_file)
+    features.to_pickle(pickle_file)
+    print('Pickled %s' %pickle_file)
+    #else:
+    #    print('Pickle file %s exists. Skip.' % pickle_file)
 
 def plots_wrapper(date, hour='00', data_info=None):
     str_year, str_month, str_day = str(date.year), str('%02d' % date.month), str('%02d' % date.day)
@@ -72,7 +72,12 @@ if __name__ == '__main__':
 
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    yesterday = datetime.date(2022,4,5)
+
+    # Do the analysis
+    d1 = datetime.datetime(2022, 4, 9)  # start date
+    d2 = datetime.datetime(2022, 4, 11)  # end date
+    delta = d2 - d1  # timedelta
+
 
     oper = dict()
     oper['label'] = 'OPER_UM'
@@ -96,8 +101,8 @@ if __name__ == '__main__':
 
     obs = dict()
     obs['label'] = 'GPM_Imerge'
-    obs['source'] = '/project/earthobs/PRECIPITATION/GPM/netcdf/imerg/NRTearly/1hr-accum'
-    obs['data_prefix'] = 'gpm_imerg_NRTearly_'
+    obs['source'] = '/project/earthobs/PRECIPITATION/GPM/netcdf/imerg/NRTlate/'
+    obs['data_prefix'] = 'gpm_imerg_NRTlate_V06B_'
     obs['plot_feature_dir'] = '/scratch/hadpx/Feature_monitor_data/features/' + obs['label']
     obs['data_proc_dir'] = '/scratch/hadpx/Feature_monitor_data/gpm'
     obs['process_region'] = 'SEAsia'
@@ -111,26 +116,30 @@ if __name__ == '__main__':
     # List of models to run the codes for with the dictionary definition above
     models = [oper, ps45]
 
-    for hour in ['00', '12']:
-        for model in models:
-            for lead_time in lead_times:
-                process_data.retrieve_nwp_3hr_data(yesterday, hour=hour, lead=lead_time,
-                                                   data_info=model)
+    for i in range(delta.days + 1):
+        yesterday = d1 + datetime.timedelta(days=i)
 
-                process_data.retrieve_gpm_from_modelTimeBounds(yesterday, hour=hour, lead=lead_time,
-                                                               model_data_info=model,
-                                                               obs_data_info=obs)
+        for hour in ['00']:
+            for model in models:
+                for lead_time in lead_times:
+                    process_data.retrieve_nwp_3hr_data(yesterday, hour=hour, lead=lead_time,
+                                                       data_info=model)
 
-            # Now construct 3 hourly totals from accumulations
-            # for both models and GPM
-            process_data.construct_3hrly_from_accumm(yesterday, hour=hour,
-                                                     model_data_info=model,
-                                                     obs_data_info=obs)
+                    process_data.retrieve_gpm_from_30min_modelTimeBounds(yesterday, hour=hour, lead=lead_time,
+                                                                   model_data_info=model,
+                                                                   obs_data_info=obs)
+                '''
+                # Now construct 3 hourly totals from accumulations
+                # for both models and GPM
+                process_data.construct_3hrly_from_accumm(yesterday, hour=hour,
+                                                         model_data_info=model,
+                                                         obs_data_info=obs)
 
-            # global oper
-            compute_features(yesterday, hour=hour, data_info=model)
-            plots_wrapper(yesterday, hour=hour, data_info=model)
+                # global oper
+                compute_features(yesterday, hour=hour, data_info=model)
+                plots_wrapper(yesterday, hour=hour, data_info=model)
 
-        # obs
-        compute_features(yesterday, hour=hour, data_info=obs)
-        plots_wrapper(yesterday, hour=hour, data_info=obs)
+            # obs
+            compute_features(yesterday, hour=hour, data_info=obs)
+            plots_wrapper(yesterday, hour=hour, data_info=obs)
+                '''
