@@ -3,7 +3,7 @@ def model_info_dicts():
     oper['label'] = 'OPER_UM'
     oper['source'] = 'moose:/opfc/atm/global/prods/'
     oper['data_prefix'] = 'prods_op_gl-mn_'
-    oper['plot_feature_dir'] = '/scratch/hadpx/Feature_monitor_data/features/'+oper['label']
+    oper['plot_feature_dir'] = '/scratch/hadpx/Feature_monitor_data/features/' + oper['label']
     oper['data_proc_dir'] = '/scratch/hadpx/Feature_monitor_data/global_um'
     oper['process_region'] = 'SEAsia'
     oper['region_lat_range'] = (-10, 20)
@@ -21,13 +21,13 @@ def model_info_dicts():
 
     obs = dict()
     obs['label'] = 'GPM_Imerge'
-    obs['source'] = '/project/earthobs/PRECIPITATION/GPM/netcdf/imerg/NRTearly/1hr-accum'
-    obs['data_prefix'] = 'gpm_imerg_NRTearly_'
+    obs['source'] = '/project/earthobs/PRECIPITATION/GPM/netcdf/imerg/NRTlate/'
+    obs['data_prefix'] = 'gpm_imerg_NRTlate_V06B_'
     obs['plot_feature_dir'] = '/scratch/hadpx/Feature_monitor_data/features/' + obs['label']
     obs['data_proc_dir'] = '/scratch/hadpx/Feature_monitor_data/gpm'
     obs['process_region'] = 'SEAsia'
     obs['region_lat_range'] = (-10, 20)
     obs['region_lon_range'] = (90, 140)
 
-    #return [oper, ps45, obs]
-    return [obs]
+    return [oper, ps45, obs]
+    #return [obs]

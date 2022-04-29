@@ -74,8 +74,8 @@ if __name__ == '__main__':
     yesterday = today - datetime.timedelta(days=1)
 
     # Do the analysis
-    d1 = datetime.datetime(2022, 4, 9)  # start date
-    d2 = datetime.datetime(2022, 4, 11)  # end date
+    d1 = datetime.datetime(2022, 4, 25)  # start date
+    d2 = datetime.datetime(2022, 4, 26)  # end date
     delta = d2 - d1  # timedelta
 
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
                     process_data.retrieve_gpm_from_30min_modelTimeBounds(yesterday, hour=hour, lead=lead_time,
                                                                    model_data_info=model,
                                                                    obs_data_info=obs)
-                '''
+
                 # Now construct 3 hourly totals from accumulations
                 # for both models and GPM
                 process_data.construct_3hrly_from_accumm(yesterday, hour=hour,
@@ -142,4 +142,3 @@ if __name__ == '__main__':
             # obs
             compute_features(yesterday, hour=hour, data_info=obs)
             plots_wrapper(yesterday, hour=hour, data_info=obs)
-                '''
